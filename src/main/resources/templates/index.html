@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý Sinh viên</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .message {
+            padding: 10px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            width: 70%;
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .search-box button {
+            padding: 8px 15px;
+            margin-left: 5px;
+            border: 1px solid #ddd;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .search-box button:hover {
+            background: #0056b3;
+        }
+
+        .form-section {
+            background: #f9f9f9;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+
+        .form-section h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .form-group {
+            flex: 1;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>QUẢN LÝ SINH VIÊN</h1>
+
+        <div id="message" class="message"></div>
+
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên hoặc ID...">
+            <button class="btn btn-info" onclick="searchStudents()">Tìm kiếm</button>
+            <button class="btn" onclick="loadAllStudents()" style="background: #007bff; color: white;">Tất cả</button>
+        </div>
+
+        <div class="form-section">
+            <h2 id="formTitle">Thêm mới sinh viên</h2>
+            <form id="studentForm" onsubmit="saveStudent(event)">
+                <input type="hidden" id="studentId" value="">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Họ tên:</label>
+                        <input type="text" id="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Tuổi:</label>
+                        <input type="number" id="age" required min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Email:</label>
+                        <input type="email" id="email" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success" id="submitBtn">Thêm mới</button>
+                <button type="button" class="btn btn-warning" onclick="resetForm()" id="cancelBtn" style="display:none;">Hủy</button>
+            </form>
+        </div>
+
+        <div>
+            <h2>Danh sách sinh viên</h2>
+            <table id="studentsTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Họ tên</th>
+                        <th>Tuổi</th>
+                        <th>Email</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="studentsBody">
+                    <tr>
+                        <td colspan="5" style="text-align: center;">Đang tải dữ liệu...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/students';
+
+        window.onload = function() {
+            loadAllStudents();
+        };
+
+        function loadAllStudents() {
+            fetch(API_BASE)
+                .then(response => response.json())
+                .then(data => {
+                    displayStudents(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showMessage('Lỗi khi tải danh sách sinh viên!', 'error');
+                });
+        }
+
+        function searchStudents() {
+            const searchValue = document.getElementById('searchInput').value.trim();
+            if (!searchValue) {
+                showMessage('Vui lòng nhập tên hoặc ID để tìm kiếm!', 'error');
+                return;
+            }
+
+            const searchId = parseInt(searchValue);
+            let searchUrl;
+            
+            if (!isNaN(searchId) && searchId > 0) {
+                searchUrl = `${API_BASE}/search/id?id=${searchId}`;
+            } else {
+                searchUrl = `${API_BASE}/search?name=${encodeURIComponent(searchValue)}`;
+            }
+
+            fetch(searchUrl)
+                .then(response => response.json())
+                .then(data => {
+                    displayStudents(data);
+                    if (data.length === 0) {
+                        showMessage('Không tìm thấy sinh viên nào!', 'error');
+                    } else {
+                        showMessage(`Tìm thấy ${data.length} sinh viên!`, 'success');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showMessage('Lỗi khi tìm kiếm sinh viên!', 'error');
+                });
+        }
+
+        function displayStudents(students) {
+            const tbody = document.getElementById('studentsBody');
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Không có dữ liệu sinh viên</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = students.map(student => `
+                <tr>
+                    <td>${student.id}</td>
+                    <td>${student.name}</td>
+                    <td>${student.age}</td>
+                    <td>${student.email}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn btn-warning btn-sm" onclick="editStudent(${student.id})">Cập nhật</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteStudent(${student.id})">Xóa</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function saveStudent(event) {
+            event.preventDefault();
+            
+            const studentId = document.getElementById('studentId').value;
+            const isUpdate = studentId && studentId !== '';
+            
+            let student;
+            let url;
+            
+            if (isUpdate) {
+                student = {
+                    id: parseInt(studentId),
+                    name: document.getElementById('name').value.trim(),
+                    age: parseInt(document.getElementById('age').value),
+                    email: document.getElementById('email').value.trim()
+                };
+                url = `${API_BASE}/update/${student.id}`;
+            } else {
+                student = {
+                    name: document.getElementById('name').value.trim(),
+                    age: parseInt(document.getElementById('age').value),
+                    email: document.getElementById('email').value.trim()
+                };
+                url = API_BASE;
+            }
+
+            if (!student.name || !student.email || !student.age) {
+                showMessage('Vui lòng điền đầy đủ thông tin!', 'error');
+                return;
+            }
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(student)
+            })
+            .then(async response => {
+                const contentType = response.headers.get("content-type");
+                let responseData;
+                
+                if (contentType && contentType.includes("application/json")) {
+                    responseData = await response.json();
+                } else {
+                    responseData = await response.text();
+                }
+                
+                if (!response.ok) {
+                    let errorMessage = `HTTP ${response.status}: `;
+                    if (typeof responseData === 'string') {
+                        errorMessage += responseData;
+                    } else if (responseData && responseData.message) {
+                        errorMessage += responseData.message;
+                    } else {
+                        errorMessage += JSON.stringify(responseData);
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                return responseData;
+            })
+            .then(data => {
+                showMessage(isUpdate ? 'Cập nhật sinh viên thành công!' : 'Thêm mới sinh viên thành công!', 'success');
+                resetForm();
+                loadAllStudents();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showMessage('Lỗi: ' + (error.message || 'Không thể kết nối đến server'), 'error');
+            });
+        }
+
+        function editStudent(id) {
+            fetch(`${API_BASE}/${id}`)
+                .then(response => response.json())
+                .then(student => {
+                    document.getElementById('studentId').value = student.id;
+                    document.getElementById('name').value = student.name;
+                    document.getElementById('age').value = student.age;
+                    document.getElementById('email').value = student.email;
+                    document.getElementById('formTitle').textContent = 'Cập nhật sinh viên';
+                    document.getElementById('submitBtn').textContent = 'Cập nhật';
+                    document.getElementById('cancelBtn').style.display = 'inline-block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showMessage('Lỗi khi tải thông tin sinh viên!', 'error');
+                });
+        }
+
+        function deleteStudent(id) {
+            if (!confirm('Bạn có chắc chắn muốn xóa sinh viên này?')) {
+                return;
+            }
+
+            fetch(`${API_BASE}/delete/${id}`, {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.ok) {
+                    showMessage('Xóa sinh viên thành công!', 'success');
+                    loadAllStudents();
+                } else {
+                    throw new Error('Network response was not ok');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showMessage('Lỗi khi xóa sinh viên!', 'error');
+            });
+        }
+
+        function resetForm() {
+            document.getElementById('studentForm').reset();
+            document.getElementById('studentId').value = '';
+            document.getElementById('formTitle').textContent = 'Thêm mới sinh viên';
+            document.getElementById('submitBtn').textContent = 'Thêm mới';
+            document.getElementById('cancelBtn').style.display = 'none';
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchStudents();
+            }
+        });
+    </script>
+</body>
+</html>
