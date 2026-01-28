@@ -215,6 +215,55 @@ tbody tr:hover {
     flex-wrap: wrap;
 }
 
+/* ===== PAGINATION ===== */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 25px;
+    flex-wrap: wrap;
+}
+
+.pagination button {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid #a8b3ff;
+    background: white;
+    color: #666;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 40px;
+    font-weight: 500;
+}
+
+.pagination button:hover:not(:disabled) {
+    background: #f0f2ff;
+    border-color: #6a7eff;
+    color: #6a7eff;
+}
+
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination button.active {
+    background: #6a7eff;
+    color: white;
+    border-color: #6a7eff;
+    font-weight: 600;
+}
+
+.pagination select {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    cursor: pointer;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
     body {
@@ -285,6 +334,18 @@ tbody tr:hover {
 
         <div>
             <h2>Danh sách sinh viên</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <label for="pageSize" style="font-size: 14px; color: #555; margin-right: 8px;">Hiển thị:</label>
+                    <select id="pageSize" onchange="changePageSize()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; cursor: pointer;">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                    <span style="font-size: 14px; color: #555; margin-left: 8px;">bản ghi/trang</span>
+                </div>
+            </div>
             <table id="studentsTable">
                 <thead>
                     <tr>
@@ -301,26 +362,108 @@ tbody tr:hover {
                     </tr>
                 </tbody>
             </table>
+            <div id="pagination" class="pagination"></div>
         </div>
     </div>
 
     <script>
         const API_BASE = '/api/students';
+        let currentPage = 0;
+        let pageSize = 10;
+        let totalPages = 0;
+        let totalItems = 0;
+        let isSearchMode = false;
+        let searchResults = [];
 
         window.onload = function() {
-            loadAllStudents();
+            loadStudentsPaginated();
         };
 
         function loadAllStudents() {
-            fetch(API_BASE)
+            isSearchMode = false;
+            searchResults = [];
+            currentPage = 0;
+            loadStudentsPaginated();
+        }
+
+        function loadStudentsPaginated() {
+            if (isSearchMode && searchResults.length > 0) {
+                displayStudentsPaginated(searchResults);
+                return;
+            }
+
+            fetch(`${API_BASE}/paginated?page=${currentPage}&size=${pageSize}`)
                 .then(response => response.json())
                 .then(data => {
-                    displayStudents(data);
+                    displayStudents(data.students);
+                    currentPage = data.currentPage;
+                    totalPages = data.totalPages;
+                    totalItems = data.totalItems;
+                    pageSize = data.pageSize;
+                    updatePagination();
                 })
                 .catch(error => {
                     console.error('Error:', error);
                     showMessage('Lỗi khi tải danh sách sinh viên!', 'error');
                 });
+        }
+
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('pageSize').value);
+            currentPage = 0;
+            loadStudentsPaginated();
+        }
+
+        function goToPage(page) {
+            if (page < 0 || page >= totalPages) return;
+            currentPage = page;
+            loadStudentsPaginated();
+        }
+
+        function updatePagination() {
+            const paginationDiv = document.getElementById('pagination');
+            
+            if (isSearchMode && searchResults.length > 0) {
+                // Phân trang phía client cho kết quả tìm kiếm
+                const totalSearchPages = Math.ceil(searchResults.length / pageSize);
+                paginationDiv.innerHTML = generatePaginationHTML(totalSearchPages, currentPage, searchResults.length);
+                return;
+            }
+
+            if (totalPages <= 1) {
+                paginationDiv.innerHTML = '';
+                return;
+            }
+
+            paginationDiv.innerHTML = generatePaginationHTML(totalPages, currentPage, totalItems);
+        }
+
+        function generatePaginationHTML(totalPages, currentPage, totalItems) {
+            let html = '';
+            
+            // Nút Trước
+            html += `<button onclick="goToPage(${currentPage - 1})" ${currentPage === 0 ? 'disabled' : ''}>← Trước</button>`;
+            
+            // Hiển thị tất cả số trang
+            for (let i = 0; i < totalPages; i++) {
+                html += `<button onclick="goToPage(${i})" class="${i === currentPage ? 'active' : ''}">${i + 1}</button>`;
+            }
+            
+            // Nút Sau
+            html += `<button onclick="goToPage(${currentPage + 1})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Sau →</button>`;
+            
+            return html;
+        }
+
+        function displayStudentsPaginated(allStudents) {
+            const start = currentPage * pageSize;
+            const end = start + pageSize;
+            const pageStudents = allStudents.slice(start, end);
+            displayStudents(pageStudents);
+            
+            totalPages = Math.ceil(allStudents.length / pageSize);
+            totalItems = allStudents.length;
+            updatePagination();
         }
 
         function searchStudents() {
@@ -342,11 +485,17 @@ tbody tr:hover {
             fetch(searchUrl)
                 .then(response => response.json())
                 .then(data => {
-                    displayStudents(data);
+                    isSearchMode = true;
+                    searchResults = data;
+                    currentPage = 0;
+                    
                     if (data.length === 0) {
                         showMessage('Không tìm thấy sinh viên nào!', 'error');
+                        displayStudents([]);
+                        document.getElementById('pagination').innerHTML = '';
                     } else {
                         showMessage(`Tìm thấy ${data.length} sinh viên!`, 'success');
+                        displayStudentsPaginated(data);
                     }
                 })
                 .catch(error => {
@@ -443,7 +592,7 @@ tbody tr:hover {
             .then(data => {
                 showMessage(isUpdate ? 'Cập nhật sinh viên thành công!' : 'Thêm mới sinh viên thành công!', 'success');
                 resetForm();
-                loadAllStudents();
+                loadStudentsPaginated();
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -480,7 +629,15 @@ tbody tr:hover {
             .then(response => {
                 if (response.ok) {
                     showMessage('Xóa sinh viên thành công!', 'success');
-                    loadAllStudents();
+                    // Nếu đang ở trang cuối và chỉ còn 1 item, quay về trang trước
+                    if (isSearchMode) {
+                        searchStudents();
+                    } else {
+                        if (currentPage > 0 && totalItems % pageSize === 1) {
+                            currentPage--;
+                        }
+                        loadStudentsPaginated();
+                    }
                 } else {
                     throw new Error('Network response was not ok');
                 }

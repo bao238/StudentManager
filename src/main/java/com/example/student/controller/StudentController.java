@@ -1,5 +1,6 @@
 package com.example.student.controller;
 
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -9,6 +10,7 @@ import com.example.student.model.Student;
 import com.example.student.service.StudentService;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +39,27 @@ public class StudentController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ArrayList<>());
+        }
+    }
+
+    // API lấy danh sách sinh viên có phân trang
+    @GetMapping("/api/students/paginated")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAllStudentsPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        try {
+            Page<Student> studentPage = service.getAllPaginated(page, size);
+            Map<String, Object> response = new HashMap<>();
+            response.put("students", studentPage.getContent());
+            response.put("currentPage", studentPage.getNumber());
+            response.put("totalItems", studentPage.getTotalElements());
+            response.put("totalPages", studentPage.getTotalPages());
+            response.put("pageSize", studentPage.getSize());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
